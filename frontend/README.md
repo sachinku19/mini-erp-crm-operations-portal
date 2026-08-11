@@ -1,32 +1,47 @@
-# React + TypeScript + Vite
+---
+description: Technology responsibilities and the frontend-backend organization.
+---
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+# Technology Stack & Project Structure
 
-Currently, two official plugins are available:
+## Technology Stack & Project Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Layer           | Technology                       | Responsibility                                      |
+| --------------- | -------------------------------- | --------------------------------------------------- |
+| Web application | React and TypeScript             | Typed UI, application state, and protected routes   |
+| Frontend build  | Vite                             | Local development and production frontend builds    |
+| API runtime     | Node.js, Express, and TypeScript | REST endpoints, middleware, and business operations |
+| Data platform   | PostgreSQL and Supabase          | Operational data and hosted database infrastructure |
+| Authentication  | JWT                              | Stateless authenticated API requests                |
+| Deployment      | Vercel, Render, and Supabase     | Frontend, backend, and database hosting             |
 
-## React Compiler
+The frontend communicates with the backend through REST APIs. The backend owns authorization and database access.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Project structure
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```
+mini-erp-crm/
+├── frontend/src/
+│   ├── assets/ components/ layouts/ pages/
+│   ├── routes/ services/ hooks/ context/
+│   ├── types/ utils/ constants/
+│   ├── App.tsx             # Root application component
+│   ├── main.tsx            # Application entry point
+│   └── index.css           # Shared styles and design tokens
+├── frontend/.env.example
+├── frontend/vite.config.ts
+└── backend/src/
+    ├── config/             # Environment and database configuration
+    ├── controllers/        # HTTP request and response handling
+    ├── services/           # Business operations
+    ├── routes/             # REST route definitions
+    ├── middleware/         # Authentication, authorization, and errors
+    ├── validators/         # Request validation
+    ├── types/ utils/ constants/
+    ├── app.ts              # Express application configuration
+    └── server.ts           # HTTP server entry point
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+> **Boundary**
+>
+> UI code does not access PostgreSQL directly. All operational data flows through the Express API.
