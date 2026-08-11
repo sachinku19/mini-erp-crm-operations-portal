@@ -1,35 +1,51 @@
 import type { Request, Response, NextFunction } from "express";
-
-// Custom error class to represent API errors
-export class AppError extends Error {
-  public readonly statusCode: number;
-
-  constructor(message: string, statusCode: number) {
-    super(message);
-    this.statusCode = statusCode;
-    // Set prototype chain explicitly to preserve instanceof checks
-    Object.setPrototypeOf(this, new.target.prototype);
-  }
-}
+import { AppError } from "../utils/errors.js";
 
 // Global express error handler middleware
 export const errorHandler = (
-  err: Error & { statusCode?: number },
+  err: Error,
   _req: Request,
   res: Response,
   _next: NextFunction
 ): void => {
-  const statusCode = err.statusCode || 500;
-  const message = err.message || "Internal Server Error";
+  let statusCode = 500;
+  let message = "Internal Server Error";
+  let code = "INTERNAL_SERVER_ERROR";
+  let details: unknown = undefined;
+
+  if (err instanceof AppError) {
+    statusCode = err.statusCode;
+    message = err.message;
+    code = err.code;
+    details = err.details;
+  } else {
+    // Check for PostgreSQL specific errors
+    const pgErr = err as { code?: string; detail?: string; table?: string };
+    if (pgErr.code === "23505") {
+      statusCode = 409;
+      message = pgErr.detail || "A record with this unique identifier already exists.";
+      code = "CONFLICT";
+    } else if (pgErr.code === "23503") {
+      statusCode = 400;
+      message = "Reference check failed: associated record not found.";
+      code = "FOREIGN_KEY_VIOLATION";
+    } else {
+      if (process.env.NODE_ENV !== "production") {
+        message = err.message || message;
+        details = err.stack;
+      }
+    }
+  }
 
   // Log full stack details in development/error cases
   console.error(`[Express Error Handler] (${statusCode}):`, err);
 
   res.status(statusCode).json({
     success: false,
+    message,
     error: {
-      message,
-      ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+      code,
+      ...(details !== undefined && { details }),
     },
   });
 };

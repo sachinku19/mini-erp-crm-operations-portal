@@ -45,3 +45,27 @@ export const checkDatabaseConnection = async (): Promise<boolean> => {
     return false;
   }
 };
+
+export type TransactionCallback<T> = (client: pkg.PoolClient) => Promise<T>;
+
+/**
+ * Executes a callback within a single database transaction, ensuring the client is properly released
+ * and rolled back on error.
+ */
+export const runInTransaction = async <T>(
+  callback: TransactionCallback<T>
+): Promise<T> => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await callback(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
