@@ -1,0 +1,25 @@
+services:
+  # 1. Backend Web Service (Express Node.js API)
+  - type: web
+    name: mini-erp-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: NODE_ENV
+        value: production
+
+  # 2. Frontend Static Site (Vite React SPA)
+  - type: web
+    name: mini-erp-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
