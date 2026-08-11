@@ -56,7 +56,7 @@ export const authorize = (...allowedRoles: UserRole[]) => {
     if (!allowedRoles.includes(req.user.role)) {
       return next(
         new ForbiddenError(
-          `Access denied. Role '${req.user.role}' is not authorized for this resource.`
+          "You don't have permission to perform this action."
         )
       );
     }

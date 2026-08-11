@@ -111,7 +111,7 @@ export const challanService = {
 
           if (product.current_stock < item.quantity) {
             throw new BadRequestError(
-              `Insufficient stock for product '${product.name}'. Available: ${product.current_stock}, Requested: ${item.quantity}.`,
+              `Insufficient stock available for this dispatch. Product '${product.name}' has ${product.current_stock} pcs available, but ${item.quantity} pcs requested.`,
               "INSUFFICIENT_STOCK"
             );
           }
@@ -286,7 +286,7 @@ export const challanService = {
 
           if (product.current_stock < item.quantity) {
             throw new BadRequestError(
-              `Insufficient stock for product '${product.name}'. Available: ${product.current_stock}, Requested: ${item.quantity}.`,
+              `Insufficient stock available for this dispatch. Product '${product.name}' has ${product.current_stock} pcs available, but ${item.quantity} pcs requested.`,
               "INSUFFICIENT_STOCK"
             );
           }
@@ -346,7 +346,7 @@ export const challanService = {
 
         if (product.current_stock < item.quantity) {
           throw new BadRequestError(
-            `Insufficient stock for product '${product.name}'. Available: ${product.current_stock}, Requested: ${item.quantity}.`,
+            `Insufficient stock available for this dispatch. Product '${product.name}' has ${product.current_stock} pcs available, but ${item.quantity} pcs requested.`,
             "INSUFFICIENT_STOCK"
           );
         }

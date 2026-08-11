@@ -18,11 +18,11 @@ router.use(authenticate);
 /**
  * @route POST /api/v1/challans
  * @desc Create a new sales challan (draft or confirmed)
- * @access Admin, Sales
+ * @access Admin, Sales, Warehouse
  */
 router.post(
   "/",
-  authorize(ROLES.ADMIN, ROLES.SALES),
+  authorize(ROLES.ADMIN, ROLES.SALES, ROLES.WAREHOUSE),
   validate({ body: createChallanSchema }),
   challanController.create
 );
@@ -54,11 +54,11 @@ router.get(
 /**
  * @route PUT /api/v1/challans/:id
  * @desc Update details of an existing draft challan
- * @access Admin, Sales
+ * @access Admin, Sales, Warehouse
  */
 router.put(
   "/:id",
-  authorize(ROLES.ADMIN, ROLES.SALES),
+  authorize(ROLES.ADMIN, ROLES.SALES, ROLES.WAREHOUSE),
   validate({ params: challanParamsSchema, body: updateChallanSchema }),
   challanController.update
 );
