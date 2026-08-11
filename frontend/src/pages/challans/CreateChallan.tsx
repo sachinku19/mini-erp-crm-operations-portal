@@ -1,51 +1,53 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { challanService } from "../../services/challanService";
 import { customerService } from "../../services/customerService";
 import type { Customer } from "../../services/customerService";
 import { productService } from "../../services/productService";
 import type { Product } from "../../services/productService";
-import { challanService } from "../../services/challanService";
 import {
-  ArrowLeft,
+  FileText,
+  User,
+  Package,
   Plus,
   Trash2,
-  Save,
-  Check,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
   ShieldAlert,
-  AlertCircle,
+  Building2,
 } from "lucide-react";
 
 interface SelectedItem {
   product_id: string;
+  product_name: string;
+  sku: string;
+  unit_price: number;
+  available_stock: number;
   quantity: number;
 }
 
 export const CreateChallan: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const urlCustomerId = searchParams.get("customer_id") || "";
+  const [step, setStep] = useState<number>(1); // Step 1: Customer, Step 2: Items, Step 3: Review
 
-  // Data directories loaded from server
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingData, setLoadingData] = useState<boolean>(true);
+
+  // Form State
+  const [customerId, setCustomerId] = useState<string>("");
+  const [items, setItems] = useState<SelectedItem[]>([]);
+  const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form Fields
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(urlCustomerId);
-  const [items, setItems] = useState<SelectedItem[]>([{ product_id: "", quantity: 1 }]);
-  const [saveStatus, setSaveStatus] = useState<"DRAFT" | "CONFIRMED">("DRAFT");
-  
-  // Triggers & indicators
-  const [submitting, setSubmitting] = useState<boolean>(false);
-  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
-  const [formErrors, setFormErrors] = useState<string | null>(null);
+  // Current item picker inputs
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
+  const [quantityInput, setQuantityInput] = useState<number>(1);
 
-  // Load directories
   useEffect(() => {
-    const loadDirectories = async () => {
+    const fetchData = async () => {
       setLoadingData(true);
-      setError(null);
       try {
         const [custRes, prodRes] = await Promise.all([
           customerService.getCustomers({ limit: 100 }),
@@ -53,130 +55,104 @@ export const CreateChallan: React.FC = () => {
         ]);
         setCustomers(custRes.data);
         setProducts(prodRes.data);
-
-        // Pre-fill fields if customer is not specified
-        if (!selectedCustomerId && custRes.data.length > 0) {
-          setSelectedCustomerId(custRes.data[0].id);
-        }
-        if (prodRes.data.length > 0) {
-          setItems([{ product_id: prodRes.data[0].id, quantity: 1 }]);
-        }
       } catch (err: any) {
-        setError("Failed to load customer or product registries for selection.");
+        setError("Failed to load customer and product records.");
       } finally {
         setLoadingData(false);
       }
     };
-    loadDirectories();
+
+    fetchData();
   }, []);
 
-  const handleAddItemRow = () => {
-    const defaultProductId = products[0]?.id || "";
-    setItems((prev) => [...prev, { product_id: defaultProductId, quantity: 1 }]);
+  const selectedCustomer = customers.find((c) => c.id === customerId);
+
+  const handleAddItem = () => {
+    if (!selectedProductId) return;
+    const prod = products.find((p) => p.id === selectedProductId);
+    if (!prod) return;
+
+    if (quantityInput <= 0) {
+      alert("Quantity must be at least 1.");
+      return;
+    }
+
+    if (quantityInput > prod.current_stock) {
+      alert(`Cannot add more than available stock (${prod.current_stock} units).`);
+      return;
+    }
+
+    // Check if item already exists
+    const existingIndex = items.findIndex((i) => i.product_id === prod.id);
+    if (existingIndex >= 0) {
+      const updated = [...items];
+      updated[existingIndex].quantity += quantityInput;
+      setItems(updated);
+    } else {
+      setItems([
+        ...items,
+        {
+          product_id: prod.id,
+          product_name: prod.name,
+          sku: prod.sku,
+          unit_price: prod.unit_price,
+          available_stock: prod.current_stock,
+          quantity: quantityInput,
+        },
+      ]);
+    }
+
+    setSelectedProductId("");
+    setQuantityInput(1);
   };
 
-  const handleRemoveItemRow = (idx: number) => {
-    if (items.length <= 1) return;
-    setItems((prev) => prev.filter((_, itemIdx) => itemIdx !== idx));
+  const handleRemoveItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index));
   };
 
-  const handleItemChange = (idx: number, field: keyof SelectedItem, value: any) => {
-    setItems((prev) => {
-      const next = [...prev];
-      next[idx] = { ...next[idx], [field]: value };
-      return next;
-    });
+  const handleQuantityChange = (index: number, newQty: number) => {
+    if (newQty <= 0) return;
+    const item = items[index];
+    if (newQty > item.available_stock) {
+      alert(`Maximum stock available: ${item.available_stock}`);
+      return;
+    }
+    const updated = [...items];
+    updated[index].quantity = newQty;
+    setItems(updated);
   };
 
-  // Live calculations
-  const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-  const totalAmount = items.reduce((sum, item) => {
-    const prod = products.find((p) => p.id === item.product_id);
-    const rate = prod ? prod.unit_price : 0;
-    return sum + rate * (item.quantity || 0);
-  }, 0);
+  const calculateTotalValuation = () => {
+    return items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  };
 
-  const validateForm = () => {
-    setFormErrors(null);
-    if (!selectedCustomerId) {
-      setFormErrors("Please select a customer.");
-      return false;
+  const calculateTotalUnits = () => {
+    return items.reduce((sum, item) => sum + item.quantity, 0);
+  };
+
+  const handleSubmitChallan = async (status: "DRAFT" | "CONFIRMED") => {
+    if (!customerId) {
+      setError("Please select a customer.");
+      setStep(1);
+      return;
     }
     if (items.length === 0) {
-      setFormErrors("Please add at least one product item row.");
-      return false;
-    }
-    
-    // Check for duplicate products in lines
-    const productIds = items.map((i) => i.product_id);
-    const duplicates = productIds.filter((id, index) => productIds.indexOf(id) !== index);
-    if (duplicates.length > 0) {
-      const duplicateProd = products.find((p) => p.id === duplicates[0]);
-      setFormErrors(`Duplicate lines: '${duplicateProd?.name}' is added multiple times. Please group quantities instead.`);
-      return false;
-    }
-
-    for (let i = 0; i < items.length; i++) {
-      const row = items[i];
-      if (!row.product_id) {
-        setFormErrors(`Line ${i + 1}: Please select a product.`);
-        return false;
-      }
-      if (isNaN(row.quantity) || row.quantity <= 0) {
-        setFormErrors(`Line ${i + 1}: Quantity must be a valid positive integer.`);
-        return false;
-      }
-
-      // Check stock limits if creating confirmed
-      if (saveStatus === "CONFIRMED") {
-        const prod = products.find((p) => p.id === row.product_id);
-        if (prod && row.quantity > prod.current_stock) {
-          setFormErrors(
-            `Line ${i + 1}: Insufficient stock for '${prod.name}'. Available: ${prod.current_stock}, Requested: ${row.quantity}`
-          );
-          return false;
-        }
-      }
-    }
-    return true;
-  };
-
-  const handleTriggerSave = (status: "DRAFT" | "CONFIRMED") => {
-    setSaveStatus(status);
-    // Timeout to allow state change before validation
-    setTimeout(() => {
-      if (status === "CONFIRMED") {
-        setShowConfirmModal(true);
-      } else {
-        executeSave("DRAFT");
-      }
-    }, 50);
-  };
-
-  const executeSave = async (status: "DRAFT" | "CONFIRMED") => {
-    if (!validateForm()) {
-      setShowConfirmModal(false);
+      setError("Please add at least one product item.");
+      setStep(2);
       return;
     }
 
     setSubmitting(true);
-    setFormErrors(null);
-    setShowConfirmModal(false);
-
+    setError(null);
     try {
-      const payload = {
-        customer_id: selectedCustomerId,
-        items: items.map((i) => ({
-          product_id: i.product_id,
-          quantity: i.quantity,
-        })),
+      const created = await challanService.createChallan({
+        customer_id: customerId,
+        items: items.map((i) => ({ product_id: i.product_id, quantity: i.quantity })),
         status,
-      };
-
-      const created = await challanService.createChallan(payload);
-      navigate(`/challans/${created.id}`, { replace: true });
+      });
+      navigate(`/challans/${created.id}`);
     } catch (err: any) {
-      setFormErrors(err.message || "Failed to save challan. Verify warehouse stocks.");
+      setError(err.message || "Failed to issue sales challan.");
     } finally {
       setSubmitting(false);
     }
@@ -184,299 +160,362 @@ export const CreateChallan: React.FC = () => {
 
   if (loadingData) {
     return (
-      <div>
-        <div className="skeleton skeleton-title" style={{ width: "250px" }} />
-        <div className="card">
-          <div className="skeleton skeleton-row" style={{ height: "100px" }} />
-          <div className="skeleton skeleton-row" style={{ height: "200px" }} />
-        </div>
+      <div className="card">
+        <div className="skeleton skeleton-title" />
+        <div className="skeleton skeleton-row" style={{ height: "200px" }} />
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-      {/* Back link */}
-      <div style={{ marginBottom: "var(--spacing-md)" }}>
-        <Link to="/challans" className="flex items-center gap-xs text-muted" style={{ fontSize: "var(--font-size-sm)" }}>
-          <ArrowLeft size={16} /> Back to Challans
-        </Link>
+    <div>
+      {/* Header */}
+      <div className="flex justify-between items-center mb-lg">
+        <div>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: "var(--font-weight-bold)", color: "var(--color-slate-900)" }}>
+            Issue Delivery Challan
+          </h1>
+          <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-slate-500)" }}>
+            Multi-step sales dispatch workflow and warehouse stock reservation.
+          </p>
+        </div>
+
+        <button className="btn btn-outline" onClick={() => navigate("/challans")}>
+          Cancel
+        </button>
       </div>
 
-      {/* Header Title */}
-      <div style={{ marginBottom: "var(--spacing-xl)" }}>
-        <h1 style={{ fontSize: "var(--font-size-xl)", fontWeight: "var(--font-weight-bold)" }}>
-          Generate Delivery Challan
-        </h1>
-        <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)" }}>
-          Draft dispatches, choose target products, and commit dispatches.
-        </p>
-      </div>
-
-      {/* Global alert boxes */}
+      {/* Error alert */}
       {error && (
-        <div className="alert alert-danger" style={{ marginBottom: "var(--spacing-lg)" }}>
-          <AlertCircle size={20} />
+        <div className="alert alert-danger mb-lg">
+          <ShieldAlert size={18} />
           <span>{error}</span>
         </div>
       )}
 
-      {formErrors && (
-        <div className="alert alert-danger" style={{ marginBottom: "var(--spacing-lg)" }}>
-          <ShieldAlert size={20} style={{ flexShrink: 0 }} />
-          <span>{formErrors}</span>
-        </div>
-      )}
-
-      {/* Main Grid: Item Form (Left) & Live Summary (Right) */}
-      <div className="grid grid-cols-3 gap-md" style={{ gridTemplateColumns: "2fr 1fr", alignItems: "start" }}>
-        <style>{`
-          @media (max-width: 768px) {
-            .grid-cols-3 { grid-template-columns: 1fr !important; }
-          }
-        `}</style>
-        
-        {/* Left: Creator Form */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-md)" }}>
-          
-          {/* Card 1: Consignee selection */}
-          <div className="card">
-            <h3 style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)", textTransform: "uppercase", marginBottom: "var(--spacing-md)" }}>
-              Step 1: Select Customer
-            </h3>
-            
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Client Consignee</label>
-              <select
-                className="form-select"
-                value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                disabled={submitting}
-              >
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} — {c.business_name} ({c.customer_type})
-                  </option>
-                ))}
-              </select>
-            </div>
+      {/* Stepper Progress Bar Header */}
+      <div className="card mb-xl" style={{ padding: "1rem 1.5rem" }}>
+        <div className="stepper-container" style={{ margin: 0 }}>
+          <div className={`stepper-item ${step === 1 ? "active" : step > 1 ? "completed" : ""}`}>
+            <div className="stepper-circle">{step > 1 ? <CheckCircle2 size={16} /> : "01"}</div>
+            <div className="stepper-label">Select Customer</div>
           </div>
 
-          {/* Card 2: Items line editor */}
-          <div className="card">
-            <div className="flex justify-between items-center" style={{ marginBottom: "var(--spacing-md)", borderBottom: "1px solid var(--color-border-light)", paddingBottom: "var(--spacing-sm)" }}>
-              <h3 style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)", textTransform: "uppercase" }}>
-                Step 2: Add Product Items
-              </h3>
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={handleAddItemRow}
-                style={{ padding: "4px 8px", fontSize: "0.75rem" }}
-                disabled={submitting}
-              >
-                <Plus size={14} /> Add Line Item
-              </button>
-            </div>
+          <div style={{ flex: 1, height: "2px", backgroundColor: "var(--color-slate-200)", margin: "0 1rem" }} />
 
-            {/* Line items editor lists */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-md)" }}>
-              {items.map((item, idx) => {
-                const prod = products.find((p) => p.id === item.product_id);
-                const rate = prod ? prod.unit_price : 0;
-                const available = prod ? prod.current_stock : 0;
-                const subtotal = rate * (item.quantity || 0);
-
-                return (
-                  <div
-                    key={idx}
-                    className="flex"
-                    style={{
-                      gap: "var(--spacing-sm)",
-                      alignItems: "flex-start",
-                      paddingBottom: "var(--spacing-md)",
-                      borderBottom: "1px solid var(--color-border-light)",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {/* Product Selection */}
-                    <div style={{ flex: "1 1 250px" }}>
-                      <label className="form-label" style={{ fontSize: "var(--font-size-xs)", marginBottom: "4px" }}>Product</label>
-                      <select
-                        className="form-select"
-                        value={item.product_id}
-                        onChange={(e) => handleItemChange(idx, "product_id", e.target.value)}
-                        disabled={submitting}
-                      >
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.sku}) — Stock: {p.current_stock}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Stock Alert Info */}
-                    <div style={{ flex: "0 0 100px" }}>
-                      <label className="form-label" style={{ fontSize: "var(--font-size-xs)", marginBottom: "4px" }}>Available</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={`${available} units`}
-                        style={{ backgroundColor: "var(--color-bg-base)", border: "none" }}
-                        disabled
-                      />
-                    </div>
-
-                    {/* Rate info */}
-                    <div style={{ flex: "0 0 100px" }}>
-                      <label className="form-label" style={{ fontSize: "var(--font-size-xs)", marginBottom: "4px" }}>Rate (INR)</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={`₹${rate.toLocaleString()}`}
-                        style={{ backgroundColor: "var(--color-bg-base)", border: "none" }}
-                        disabled
-                      />
-                    </div>
-
-                    {/* Quantity input */}
-                    <div style={{ flex: "0 0 80px" }}>
-                      <label className="form-label" style={{ fontSize: "var(--font-size-xs)", marginBottom: "4px" }}>Qty</label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        value={item.quantity || ""}
-                        onChange={(e) => handleItemChange(idx, "quantity", parseInt(e.target.value, 10))}
-                        min="1"
-                        disabled={submitting}
-                      />
-                    </div>
-
-                    {/* Subtotal */}
-                    <div style={{ flex: "0 0 100px" }}>
-                      <label className="form-label" style={{ fontSize: "var(--font-size-xs)", marginBottom: "4px" }}>Subtotal</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={`₹${subtotal.toLocaleString()}`}
-                        style={{ backgroundColor: "var(--color-bg-base)", border: "none", fontWeight: "var(--font-weight-semibold)" }}
-                        disabled
-                      />
-                    </div>
-
-                    {/* Remove button */}
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      onClick={() => handleRemoveItemRow(idx)}
-                      style={{
-                        alignSelf: "flex-end",
-                        padding: "var(--spacing-sm)",
-                        color: "var(--color-danger)",
-                        borderColor: "transparent",
-                        marginTop: "20px",
-                      }}
-                      disabled={items.length <= 1 || submitting}
-                      title="Remove Row"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+          <div className={`stepper-item ${step === 2 ? "active" : step > 2 ? "completed" : ""}`}>
+            <div className="stepper-circle">{step > 2 ? <CheckCircle2 size={16} /> : "02"}</div>
+            <div className="stepper-label">Select Product Items</div>
           </div>
-        </div>
 
-        {/* Right: Live Summary Card */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-md)", position: "sticky", top: "var(--spacing-md)" }}>
-          <div className="card">
-            <h3 style={{ fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)", textTransform: "uppercase", marginBottom: "var(--spacing-md)" }}>
-              Dispatch Summary
-            </h3>
+          <div style={{ flex: 1, height: "2px", backgroundColor: "var(--color-slate-200)", margin: "0 1rem" }} />
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-md)", fontSize: "var(--font-size-sm)" }}>
-              <div className="flex justify-between">
-                <span className="text-muted">Total Line Items:</span>
-                <span>{items.length} lines</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Total Quantity:</span>
-                <strong>{totalQuantity} units</strong>
-              </div>
-              <div className="flex justify-between" style={{ borderTop: "1px solid var(--color-border-light)", paddingTop: "var(--spacing-md)" }}>
-                <span style={{ fontWeight: "var(--font-weight-medium)" }}>Valuation Total:</span>
-                <strong style={{ fontSize: "var(--font-size-lg)", color: "var(--color-primary)" }}>
-                  ₹{totalAmount.toLocaleString()}
-                </strong>
-              </div>
-            </div>
-
-            {/* Actions Bar */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)", marginTop: "var(--spacing-xl)" }}>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => handleTriggerSave("CONFIRMED")}
-                disabled={submitting}
-              >
-                <Check size={16} /> Confirm and Release Stock
-              </button>
-              
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={() => handleTriggerSave("DRAFT")}
-                disabled={submitting}
-                style={{ backgroundColor: "var(--color-bg-base)" }}
-              >
-                <Save size={16} /> Save as Draft
-              </button>
-              
-              <Link to="/challans" className="btn btn-secondary" style={{ pointerEvents: submitting ? "none" : "auto" }}>
-                Cancel
-              </Link>
-            </div>
+          <div className={`stepper-item ${step === 3 ? "active" : ""}`}>
+            <div className="stepper-circle">03</div>
+            <div className="stepper-label">Review & Issue Dispatch</div>
           </div>
         </div>
       </div>
 
-      {/* Confirm stock deduction modal */}
-      {showConfirmModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3 style={{ color: "var(--color-success)" }}>Release Dispatches confirmation</h3>
-              <button
-                className="btn btn-outline"
-                style={{ padding: "4px", borderColor: "transparent" }}
-                onClick={() => setShowConfirmModal(false)}
+      {/* Main Grid: Form Steps (Left) vs Summary Invoice (Right) */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "1.5rem", alignItems: "start" }}>
+        <style>{`
+          @media (max-width: 900px) {
+            div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
+
+        {/* LEFT PANEL: Form Steps */}
+        <div>
+          {/* STEP 1: CUSTOMER SELECTION */}
+          {step === 1 && (
+            <div className="card">
+              <div className="flex items-center gap-sm mb-lg" style={{ borderBottom: "1px solid var(--color-border-light)", paddingBottom: "0.75rem" }}>
+                <User size={18} style={{ color: "var(--color-primary)" }} />
+                <h3 style={{ fontSize: "var(--font-size-base)", fontWeight: "var(--font-weight-semibold)", margin: 0 }}>
+                  Step 1: Choose Customer Account
+                </h3>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Wholesale Customer Account *</label>
+                <select
+                  className="form-select"
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value)}
+                  style={{ fontSize: "var(--font-size-sm)" }}
+                >
+                  <option value="">-- Select Customer Account --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.business_name || "Personal"}) • {c.customer_type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedCustomer && (
+                <div
+                  style={{
+                    backgroundColor: "var(--color-slate-50)",
+                    padding: "1rem",
+                    borderRadius: "var(--border-radius-md)",
+                    border: "1px solid var(--color-border)",
+                    marginBottom: "1.5rem",
+                  }}
+                >
+                  <div className="flex items-center gap-xs mb-xs" style={{ fontWeight: "var(--font-weight-semibold)", color: "var(--color-slate-900)" }}>
+                    <Building2 size={16} /> {selectedCustomer.business_name || selectedCustomer.name}
+                  </div>
+                  <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-slate-600)" }}>
+                    Contact Person: {selectedCustomer.name} • Email: {selectedCustomer.email} • Mobile: {selectedCustomer.mobile || "N/A"}
+                  </div>
+                  {selectedCustomer.address && (
+                    <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-slate-500)", marginTop: "4px" }}>
+                      Address: {selectedCustomer.address}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end mt-lg">
+                <button
+                  className="btn btn-primary"
+                  disabled={!customerId}
+                  onClick={() => setStep(2)}
+                >
+                  Continue to Add Items <ArrowRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: PRODUCT ITEMS SELECTION */}
+          {step === 2 && (
+            <div className="card">
+              <div className="flex items-center gap-sm mb-lg" style={{ borderBottom: "1px solid var(--color-border-light)", paddingBottom: "0.75rem" }}>
+                <Package size={18} style={{ color: "var(--color-primary)" }} />
+                <h3 style={{ fontSize: "var(--font-size-base)", fontWeight: "var(--font-weight-semibold)", margin: 0 }}>
+                  Step 2: Add Inventory Product Items
+                </h3>
+              </div>
+
+              {/* Item Adder Inputs */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 110px auto",
+                  gap: "0.75rem",
+                  alignItems: "end",
+                  backgroundColor: "var(--color-slate-50)",
+                  padding: "1rem",
+                  borderRadius: "var(--border-radius-md)",
+                  border: "1px solid var(--color-border)",
+                  marginBottom: "1.5rem",
+                }}
               >
-                ✕
-              </button>
+                <div>
+                  <label className="form-label">Select Catalog Product *</label>
+                  <select
+                    className="form-select"
+                    value={selectedProductId}
+                    onChange={(e) => setSelectedProductId(e.target.value)}
+                  >
+                    <option value="">-- Choose Item SKU --</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id} disabled={p.current_stock === 0}>
+                        {p.name} ({p.sku}) • Stock: {p.current_stock} pcs • ₹{p.unit_price.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="form-label">Quantity *</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min={1}
+                    value={quantityInput}
+                    onChange={(e) => setQuantityInput(parseInt(e.target.value, 10) || 1)}
+                  />
+                </div>
+
+                <button className="btn btn-primary" onClick={handleAddItem} disabled={!selectedProductId}>
+                  <Plus size={16} /> Add Item
+                </button>
+              </div>
+
+              {/* Added Line Items Table */}
+              <div className="table-container mb-lg">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>SKU</th>
+                      <th>Unit Price</th>
+                      <th>Dispatch Qty</th>
+                      <th>Subtotal</th>
+                      <th style={{ textAlign: "right" }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: "center", padding: "2rem", color: "var(--color-slate-400)" }}>
+                          No product items added yet. Use the selector above to add dispatch items.
+                        </td>
+                      </tr>
+                    ) : (
+                      items.map((item, idx) => (
+                        <tr key={item.product_id}>
+                          <td style={{ fontWeight: "var(--font-weight-semibold)" }}>{item.product_name}</td>
+                          <td style={{ fontFamily: "monospace", fontSize: "var(--font-size-xs)" }}>{item.sku}</td>
+                          <td>₹{item.unit_price.toFixed(2)}</td>
+                          <td>
+                            <input
+                              type="number"
+                              className="form-input"
+                              min={1}
+                              max={item.available_stock}
+                              value={item.quantity}
+                              onChange={(e) => handleQuantityChange(idx, parseInt(e.target.value, 10) || 1)}
+                              style={{ width: "80px", padding: "2px 6px" }}
+                            />
+                          </td>
+                          <td style={{ fontWeight: "var(--font-weight-semibold)", color: "var(--color-slate-900)" }}>
+                            ₹{(item.quantity * item.unit_price).toFixed(2)}
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            <button
+                              className="btn btn-ghost"
+                              onClick={() => handleRemoveItem(idx)}
+                              style={{ padding: "4px", color: "var(--color-danger)" }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <button className="btn btn-secondary" onClick={() => setStep(1)}>
+                  <ArrowLeft size={16} /> Back to Customer
+                </button>
+                <button className="btn btn-primary" disabled={items.length === 0} onClick={() => setStep(3)}>
+                  Review & Confirm <ArrowRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: REVIEW & CONFIRMATION */}
+          {step === 3 && (
+            <div className="card">
+              <div className="flex items-center gap-sm mb-lg" style={{ borderBottom: "1px solid var(--color-border-light)", paddingBottom: "0.75rem" }}>
+                <FileText size={18} style={{ color: "var(--color-primary)" }} />
+                <h3 style={{ fontSize: "var(--font-size-base)", fontWeight: "var(--font-weight-semibold)", margin: 0 }}>
+                  Step 3: Review Dispatch & Reserve Stocks
+                </h3>
+              </div>
+
+              <div style={{ backgroundColor: "var(--color-slate-50)", padding: "1rem", borderRadius: "var(--border-radius-md)", border: "1px solid var(--color-border)", marginBottom: "1.5rem" }}>
+                <div style={{ fontSize: "var(--font-size-xs)", fontWeight: "var(--font-weight-bold)", color: "var(--color-slate-500)", textTransform: "uppercase", marginBottom: "4px" }}>
+                  Customer Account
+                </div>
+                <div style={{ fontSize: "var(--font-size-md)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-slate-900)" }}>
+                  {selectedCustomer?.name} ({selectedCustomer?.business_name})
+                </div>
+                <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-slate-500)" }}>
+                  Email: {selectedCustomer?.email} • Mobile: {selectedCustomer?.mobile || "N/A"}
+                </div>
+              </div>
+
+              <div className="table-container mb-lg">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>SKU</th>
+                      <th>Qty</th>
+                      <th>Unit Price</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item) => (
+                      <tr key={item.product_id}>
+                        <td style={{ fontWeight: "var(--font-weight-semibold)" }}>{item.product_name}</td>
+                        <td style={{ fontFamily: "monospace", fontSize: "var(--font-size-xs)" }}>{item.sku}</td>
+                        <td>{item.quantity} units</td>
+                        <td>₹{item.unit_price.toFixed(2)}</td>
+                        <td style={{ fontWeight: "var(--font-weight-semibold)" }}>₹{(item.quantity * item.unit_price).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <button className="btn btn-secondary" onClick={() => setStep(2)}>
+                  <ArrowLeft size={16} /> Back to Items
+                </button>
+                <div className="flex gap-sm">
+                  <button className="btn btn-outline" disabled={submitting} onClick={() => handleSubmitChallan("DRAFT")}>
+                    Save as DRAFT
+                  </button>
+                  <button className="btn btn-primary" disabled={submitting} onClick={() => handleSubmitChallan("CONFIRMED")}>
+                    {submitting ? "Issuing..." : "Confirm & Reserve Stocks"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT PANEL: Sticky Dispatch Invoice Summary Card */}
+        <div className="card" style={{ position: "sticky", top: "80px" }}>
+          <div style={{ borderBottom: "1px solid var(--color-border-light)", paddingBottom: "0.75rem", marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "var(--font-size-sm)", fontWeight: "var(--font-weight-semibold)", margin: 0, color: "var(--color-slate-900)" }}>
+              Dispatch Order Summary
+            </h3>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "var(--font-size-sm)" }}>
+            <div className="flex justify-between text-muted" style={{ fontSize: "var(--font-size-xs)" }}>
+              <span>Customer:</span>
+              <span style={{ fontWeight: "var(--font-weight-semibold)", color: "var(--color-slate-900)" }}>
+                {selectedCustomer?.name || "Not selected"}
+              </span>
             </div>
 
-            <div className="modal-body">
-              <p style={{ fontSize: "var(--font-size-sm)" }}>
-                Are you sure you want to create and **CONFIRM** this delivery challan immediately?
-              </p>
-              <p style={{ fontSize: "var(--font-size-xs)", color: "var(--color-warning-hover)", marginTop: "var(--spacing-sm)", fontWeight: "var(--font-weight-medium)" }}>
-                ⚠️ WARNING: Stock balances will be immediately deducted for the {totalQuantity} units on this order. This action cannot be undone.
-              </p>
+            <div className="flex justify-between text-muted" style={{ fontSize: "var(--font-size-xs)" }}>
+              <span>Item SKUs:</span>
+              <span style={{ fontWeight: "var(--font-weight-semibold)", color: "var(--color-slate-900)" }}>
+                {items.length} items
+              </span>
             </div>
 
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowConfirmModal(false)} disabled={submitting}>
-                Cancel
-              </button>
-              <button className="btn btn-primary" onClick={() => executeSave("CONFIRMED")} disabled={submitting}>
-                {submitting ? "Confirming..." : "Confirm and Deduct"}
-              </button>
+            <div className="flex justify-between text-muted" style={{ fontSize: "var(--font-size-xs)" }}>
+              <span>Total Units:</span>
+              <span style={{ fontWeight: "var(--font-weight-semibold)", color: "var(--color-slate-900)" }}>
+                {calculateTotalUnits()} pcs
+              </span>
+            </div>
+
+            <div style={{ borderTop: "1px solid var(--color-border-light)", paddingTop: "0.75rem" }} className="flex justify-between items-center">
+              <span style={{ fontWeight: "var(--font-weight-semibold)", color: "var(--color-slate-700)" }}>Total Valuation:</span>
+              <span style={{ fontSize: "1.25rem", fontWeight: "var(--font-weight-bold)", color: "var(--color-primary)" }}>
+                ₹{calculateTotalValuation().toFixed(2)}
+              </span>
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

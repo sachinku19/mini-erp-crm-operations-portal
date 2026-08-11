@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { customerService } from "../services/customerService.js";
+import { auditRepository } from "../repositories/auditRepository.js";
 
 export const customerController = {
   /**
@@ -9,6 +10,18 @@ export const customerController = {
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const customer = await customerService.createCustomer(req.body);
+
+      // Log the create event
+      await auditRepository.log({
+        userId: (req as any).user?.id || null,
+        userEmail: (req as any).user?.email || "system",
+        action: "CUSTOMER_CREATED",
+        entityType: "CUSTOMER",
+        entityId: customer.id,
+        description: `Customer '${customer.name}' (${customer.business_name}) created.`,
+        metadata: { name: customer.name, customer_type: customer.customer_type },
+      });
+
       res.status(201).json({
         success: true,
         message: "Customer created successfully",
@@ -74,6 +87,17 @@ export const customerController = {
       const { id } = req.params as { id: string };
       const customer = await customerService.updateCustomer(id, req.body);
 
+      // Log the update event
+      await auditRepository.log({
+        userId: (req as any).user?.id || null,
+        userEmail: (req as any).user?.email || "system",
+        action: "CUSTOMER_UPDATED",
+        entityType: "CUSTOMER",
+        entityId: customer.id,
+        description: `Customer '${customer.name}' updated.`,
+        metadata: { name: customer.name, updates: Object.keys(req.body) },
+      });
+
       res.status(200).json({
         success: true,
         message: "Customer updated successfully",
@@ -91,7 +115,19 @@ export const customerController = {
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params as { id: string };
+      const customer = await customerService.getCustomerById(id);
       await customerService.deleteCustomer(id);
+
+      // Log the delete event
+      await auditRepository.log({
+        userId: (req as any).user?.id || null,
+        userEmail: (req as any).user?.email || "system",
+        action: "CUSTOMER_DELETED",
+        entityType: "CUSTOMER",
+        entityId: id,
+        description: `Customer '${customer.name}' archived.`,
+        metadata: { name: customer.name },
+      });
 
       res.status(200).json({
         success: true,

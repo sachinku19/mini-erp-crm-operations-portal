@@ -10,7 +10,9 @@ import {
   Plus,
   ShieldAlert,
   History,
+  Download,
 } from "lucide-react";
+import { exportToCsv } from "../../utils/csvExporter";
 
 export const StockMovements: React.FC = () => {
   const { user } = useAuth();
@@ -157,11 +159,16 @@ export const StockMovements: React.FC = () => {
             Review historical warehouse stock adjustments, dispatches, and logs.
           </p>
         </div>
-        {isWarehouseOrAdmin && (
-          <button className="btn btn-primary" onClick={handleOpenModal}>
-            <Plus size={16} /> Record Stock Adjustment
+        <div className="flex gap-sm">
+          <button className="btn btn-outline" onClick={() => exportToCsv("stock_movements_report", movements)} disabled={movements.length === 0}>
+            <Download size={16} /> Export CSV
           </button>
-        )}
+          {isWarehouseOrAdmin && (
+            <button className="btn btn-primary" onClick={handleOpenModal}>
+              <Plus size={16} /> Record Stock Adjustment
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter toolbar */}
@@ -208,7 +215,7 @@ export const StockMovements: React.FC = () => {
         </div>
       ) : (
         <div className="table-container">
-          <table className="data-table">
+          <table className="table">
             <thead>
               <tr>
                 <th>Timestamp</th>

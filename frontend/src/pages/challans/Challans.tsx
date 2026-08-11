@@ -3,7 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { challanService } from "../../services/challanService";
 import type { Challan } from "../../services/challanService";
 import { useAuth } from "../../context/AuthContext";
-import { Search, Plus, Eye, ShieldAlert, FileSpreadsheet } from "lucide-react";
+import { Search, Plus, Eye, ShieldAlert, FileSpreadsheet, Download } from "lucide-react";
+import { exportToCsv } from "../../utils/csvExporter";
 
 export const Challans: React.FC = () => {
   const { user } = useAuth();
@@ -103,11 +104,16 @@ export const Challans: React.FC = () => {
             Create and track customer delivery challans, audit stock reserves, and log details.
           </p>
         </div>
-        {canCreate && (
-          <Link to="/challans/create" className="btn btn-primary">
-            <Plus size={16} /> Create Challan
-          </Link>
-        )}
+        <div className="flex gap-sm">
+          <button className="btn btn-outline" onClick={() => exportToCsv("challans_report", challans)} disabled={challans.length === 0}>
+            <Download size={16} /> Export CSV
+          </button>
+          {canCreate && (
+            <Link to="/challans/create" className="btn btn-primary">
+              <Plus size={16} /> Create Challan
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Toolbar Filters */}
@@ -188,7 +194,7 @@ export const Challans: React.FC = () => {
         </div>
       ) : (
         <div className="table-container">
-          <table className="data-table">
+          <table className="table">
             <thead>
               <tr>
                 <th>Challan Number</th>

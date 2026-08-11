@@ -30,6 +30,7 @@ export const createProductSchema = z.object({
     .string()
     .min(1, "Location/Warehouse is required")
     .max(255),
+  is_archived: z.boolean().optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();
@@ -61,6 +62,10 @@ export const queryProductSchema = z.object({
     .string()
     .optional()
     .transform((val) => val === "true"),
+  location_warehouse: z.string().optional(),
+  stock_status: z.enum(["IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK"] as const).optional(),
+  min_price: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
+  max_price: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
 });
 
 export const createStockMovementSchema = z.object({

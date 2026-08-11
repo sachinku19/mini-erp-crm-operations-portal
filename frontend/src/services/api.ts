@@ -28,6 +28,8 @@ export class ApiError extends Error {
   }
 }
 
+let isRedirectingToLogin = false;
+
 export const api = {
   getToken(): string | null {
     return localStorage.getItem("token");
@@ -53,6 +55,11 @@ export const api = {
       headers,
     };
 
+    // Set a 30-second timeout if signal is not already provided
+    if (!options.signal && typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+      config.signal = AbortSignal.timeout(30000);
+    }
+
     const url = `${API_URL}${endpoint}`;
 
     try {
@@ -60,8 +67,13 @@ export const api = {
       
       if (response.status === 401) {
         localStorage.removeItem("token");
-        if (!window.location.pathname.startsWith("/login")) {
-          window.location.href = "/login?expired=true";
+        window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+        
+        if (!window.location.pathname.startsWith("/login") && !isRedirectingToLogin) {
+          isRedirectingToLogin = true;
+          setTimeout(() => {
+            window.location.href = "/login?expired=true";
+          }, 100);
         }
         throw new ApiError("Session expired. Please log in again.", "UNAUTHORIZED");
       }
@@ -77,9 +89,12 @@ export const api = {
       }
 
       return data;
-    } catch (err) {
+    } catch (err: any) {
       if (err instanceof ApiError) {
         throw err;
+      }
+      if (err.name === "AbortError" || err.name === "TimeoutError") {
+        throw new ApiError("API request timed out after 30 seconds.", "TIMEOUT_ERROR");
       }
       throw new ApiError(
         err instanceof Error ? err.message : "Network error occurred",

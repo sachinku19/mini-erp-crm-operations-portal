@@ -28,13 +28,15 @@ export const customerService = {
   /**
    * Retrieve a paginated lists of customers, applying filters and search terms.
    */
-  async getCustomers(query: QueryCustomerInput): Promise<PaginatedCustomers> {
+  async getCustomers(query: any): Promise<PaginatedCustomers> {
     const { rows, total } = await customerRepository.findAll({
       page: query.page,
       limit: query.limit,
       search: query.search,
       status: query.status,
       customer_type: query.customer_type,
+      follow_up_status: query.follow_up_status,
+      priority: query.priority,
     });
 
     const totalPages = Math.ceil(total / query.limit);

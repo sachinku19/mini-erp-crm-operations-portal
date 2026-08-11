@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { productService } from "../../services/productService";
 import type { Product } from "../../services/productService";
-import { Search, Plus, Eye, Edit2, ShieldAlert, AlertTriangle } from "lucide-react";
+import { Search, Plus, Eye, Edit2, ShieldAlert, AlertTriangle, Download } from "lucide-react";
+import { exportToCsv } from "../../utils/csvExporter";
 
 export const Products: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -98,9 +99,14 @@ export const Products: React.FC = () => {
             Monitor product SKUs, warehouse storage allocations, prices, and stock counts.
           </p>
         </div>
-        <Link to="/products/create" className="btn btn-primary">
-          <Plus size={16} /> Add Product
-        </Link>
+        <div className="flex gap-sm">
+          <button className="btn btn-outline" onClick={() => exportToCsv("products_report", products)} disabled={products.length === 0}>
+            <Download size={16} /> Export CSV
+          </button>
+          <Link to="/products/create" className="btn btn-primary">
+            <Plus size={16} /> Add Product
+          </Link>
+        </div>
       </div>
 
       {/* Filters Toolbar */}
@@ -191,7 +197,7 @@ export const Products: React.FC = () => {
         </div>
       ) : (
         <div className="table-container">
-          <table className="data-table">
+          <table className="table">
             <thead>
               <tr>
                 <th>SKU</th>

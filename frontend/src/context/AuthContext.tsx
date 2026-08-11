@@ -30,6 +30,15 @@ const parseJwt = (token: string): UserProfile | null => {
     );
     const decoded = JSON.parse(jsonPayload);
     
+    // Check if token has expired
+    if (decoded && decoded.exp) {
+      const nowInSeconds = Math.floor(Date.now() / 1000);
+      if (decoded.exp < nowInSeconds) {
+        console.warn("JWT token has expired.");
+        return null;
+      }
+    }
+
     // Validate required fields exist in token
     if (decoded && decoded.id && decoded.email && decoded.name && decoded.role) {
       return {
@@ -51,20 +60,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Restore session from localStorage on startup
+  // Listen for unauthorized 401 events dispatched from API client
   useEffect(() => {
-    const savedToken = localStorage.getItem("token");
-    if (savedToken) {
-      const decodedUser = parseJwt(savedToken);
-      if (decodedUser) {
-        setToken(savedToken);
-        setUser(decodedUser);
-      } else {
-        // Clear corrupt token
-        localStorage.removeItem("token");
+    const handleUnauthorized = () => {
+      logout();
+    };
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("auth:unauthorized", handleUnauthorized);
+  }, []);
+
+  // Restore session from localStorage on startup with guaranteed completion
+  useEffect(() => {
+    try {
+      const savedToken = localStorage.getItem("token");
+      if (savedToken) {
+        const decodedUser = parseJwt(savedToken);
+        if (decodedUser) {
+          setToken(savedToken);
+          setUser(decodedUser);
+        } else {
+          // Clear corrupt or expired token
+          localStorage.removeItem("token");
+        }
       }
+    } catch (err) {
+      console.error("Session restoration error:", err);
+      localStorage.removeItem("token");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   const login = async (email: string, password: string): Promise<void> => {

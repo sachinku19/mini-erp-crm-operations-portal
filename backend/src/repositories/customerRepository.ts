@@ -26,11 +26,12 @@ export const customerRepository = {
   /**
    * Create a new customer record.
    */
-  async create(input: CreateCustomerInput): Promise<CustomerRow> {
+  async create(input: any): Promise<CustomerRow> {
     const sql = `
       INSERT INTO customers (
-        name, mobile, email, business_name, gst_number, customer_type, address, status, follow_up_date, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        name, mobile, email, business_name, gst_number, customer_type, address, status, follow_up_date, notes,
+        follow_up_status, priority, last_interaction_date
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `;
     const values = [
@@ -44,6 +45,9 @@ export const customerRepository = {
       input.status,
       input.follow_up_date ? new Date(input.follow_up_date) : null,
       input.notes ? input.notes.trim() : null,
+      input.follow_up_status || "PENDING",
+      input.priority || "MEDIUM",
+      input.last_interaction_date ? new Date(input.last_interaction_date) : null,
     ];
 
     const res = await pool.query(sql, values);
@@ -81,8 +85,10 @@ export const customerRepository = {
     search?: string | undefined;
     status?: string | undefined;
     customer_type?: string | undefined;
+    follow_up_status?: string | undefined;
+    priority?: string | undefined;
   }): Promise<CustomerListResult> {
-    const conditions: string[] = [];
+    const conditions: string[] = ["is_archived = FALSE"];
     const params: unknown[] = [];
 
     if (query.search) {
@@ -100,6 +106,16 @@ export const customerRepository = {
     if (query.customer_type) {
       params.push(query.customer_type);
       conditions.push(`customer_type = $${params.length}`);
+    }
+
+    if (query.follow_up_status) {
+      params.push(query.follow_up_status);
+      conditions.push(`follow_up_status = $${params.length}`);
+    }
+
+    if (query.priority) {
+      params.push(query.priority);
+      conditions.push(`priority = $${params.length}`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -165,7 +181,7 @@ export const customerRepository = {
    * Delete a customer by ID.
    */
   async delete(id: string): Promise<boolean> {
-    const res = await pool.query("DELETE FROM customers WHERE id = $1 RETURNING id", [id]);
+    const res = await pool.query("UPDATE customers SET is_archived = TRUE WHERE id = $1 RETURNING id", [id]);
     return (res.rowCount ?? 0) > 0;
   },
 };

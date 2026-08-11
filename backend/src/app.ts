@@ -10,6 +10,10 @@ import authRouter from "./routes/authRoutes.js";
 import customerRouter from "./routes/customerRoutes.js";
 import { productsRouter, inventoryRouter } from "./routes/productRoutes.js";
 import challanRouter from "./routes/challanRoutes.js";
+import auditRouter from "./routes/auditRoutes.js";
+import searchRouter from "./routes/searchRoutes.js";
+import userRouter from "./routes/userRoutes.js";
+import alertRouter from "./routes/alertRoutes.js";
 
 const app = express();
 
@@ -66,6 +70,10 @@ v1Router.use("/customers", customerRouter);
 v1Router.use("/products", productsRouter);
 v1Router.use("/inventory", inventoryRouter);
 v1Router.use("/challans", challanRouter);
+v1Router.use("/audit-logs", auditRouter);
+v1Router.use("/search", searchRouter);
+v1Router.use("/users", userRouter);
+v1Router.use("/alerts", alertRouter);
 
 // 6. 404 Route handler for unrecognized paths
 app.use((_req, _res, next) => {

@@ -41,6 +41,14 @@ export const createCustomerSchema = z.object({
     .string()
     .nullable()
     .optional(),
+  follow_up_status: z.enum(["PENDING", "COMPLETED", "OVERDUE"] as const).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"] as const).optional(),
+  last_interaction_date: z
+    .string()
+    .datetime({ message: "Invalid ISO datetime string" })
+    .nullable()
+    .optional()
+    .or(z.date().nullable().optional()),
 });
 
 export const updateCustomerSchema = createCustomerSchema.partial();
@@ -69,6 +77,8 @@ export const queryCustomerSchema = z.object({
   search: z.string().optional(),
   status: customerStatusSchema.optional(),
   customer_type: customerTypeSchema.optional(),
+  follow_up_status: z.enum(["PENDING", "COMPLETED", "OVERDUE"] as const).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"] as const).optional(),
 });
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;

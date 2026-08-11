@@ -85,8 +85,12 @@ export const productRepository = {
     search?: string | undefined;
     category?: string | undefined;
     low_stock?: boolean | undefined;
+    location_warehouse?: string | undefined;
+    stock_status?: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK" | undefined;
+    min_price?: number | undefined;
+    max_price?: number | undefined;
   }): Promise<{ rows: ProductRow[]; total: number }> {
-    const conditions: string[] = [];
+    const conditions: string[] = ["is_archived = FALSE"];
     const params: unknown[] = [];
 
     if (query.search) {
@@ -101,8 +105,33 @@ export const productRepository = {
       conditions.push(`category = $${params.length}`);
     }
 
+    if (query.location_warehouse) {
+      params.push(query.location_warehouse.trim());
+      conditions.push(`location_warehouse = $${params.length}`);
+    }
+
+    if (query.min_price !== undefined) {
+      params.push(query.min_price);
+      conditions.push(`unit_price >= $${params.length}`);
+    }
+
+    if (query.max_price !== undefined) {
+      params.push(query.max_price);
+      conditions.push(`unit_price <= $${params.length}`);
+    }
+
     if (query.low_stock) {
       conditions.push(`current_stock <= minimum_stock_alert_quantity`);
+    }
+
+    if (query.stock_status) {
+      if (query.stock_status === "OUT_OF_STOCK") {
+        conditions.push(`current_stock = 0`);
+      } else if (query.stock_status === "LOW_STOCK") {
+        conditions.push(`current_stock <= minimum_stock_alert_quantity`);
+      } else if (query.stock_status === "IN_STOCK") {
+        conditions.push(`current_stock > 0`);
+      }
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";

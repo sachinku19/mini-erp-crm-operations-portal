@@ -22,6 +22,10 @@ import { Challans } from "./pages/challans/Challans";
 import { CreateChallan } from "./pages/challans/CreateChallan";
 import { ChallanDetails } from "./pages/challans/ChallanDetails";
 
+// Admin Pages
+import { AuditLogs } from "./pages/admin/AuditLogs";
+import { UserManagement } from "./pages/admin/UserManagement";
+
 export const App: React.FC = () => {
   return (
     <BrowserRouter>
@@ -145,6 +149,24 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={["Admin", "Sales", "Warehouse", "Accounts"]}>
                   <ChallanDetails />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin Modules - Restricted to Admin */}
+            <Route
+              path="audit-logs"
+              element={
+                <ProtectedRoute allowedRoles={["Admin"]}>
+                  <AuditLogs />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="users"
+              element={
+                <ProtectedRoute allowedRoles={["Admin"]}>
+                  <UserManagement />
                 </ProtectedRoute>
               }
             />

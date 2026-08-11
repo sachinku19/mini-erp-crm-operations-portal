@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { CommandPalette } from "../components/common/CommandPalette";
 
 export const AppShell: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
@@ -9,6 +10,8 @@ export const AppShell: React.FC = () => {
 
   return (
     <div className="app-layout">
+      {/* Global Command Center (Ctrl+K) */}
+      <CommandPalette />
       {/* Navigation sidebar */}
       <Sidebar
         isCollapsed={isCollapsed}

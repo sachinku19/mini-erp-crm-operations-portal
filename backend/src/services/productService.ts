@@ -46,13 +46,17 @@ export const productService = {
   /**
    * Retrieve a paginated list of products.
    */
-  async getProducts(query: QueryProductInput): Promise<PaginatedProducts> {
+  async getProducts(query: any): Promise<PaginatedProducts> {
     const { rows, total } = await productRepository.findAll({
       page: query.page,
       limit: query.limit,
       search: query.search,
       category: query.category,
       low_stock: query.low_stock,
+      location_warehouse: query.location_warehouse,
+      stock_status: query.stock_status,
+      min_price: query.min_price,
+      max_price: query.max_price,
     });
 
     const totalPages = Math.ceil(total / query.limit);

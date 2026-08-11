@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { customerService } from "../../services/customerService";
 import type { Customer } from "../../services/customerService";
-import { Search, UserPlus, Eye, Edit2, Trash2, ShieldAlert } from "lucide-react";
+import { Search, UserPlus, Eye, Edit2, Trash2, ShieldAlert, Download } from "lucide-react";
+import { exportToCsv } from "../../utils/csvExporter";
 
 export const Customers: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,9 +127,14 @@ export const Customers: React.FC = () => {
             Manage wholesale/distributor clients, view contact details, and logs.
           </p>
         </div>
-        <Link to="/customers/create" className="btn btn-primary">
-          <UserPlus size={16} /> Add Customer
-        </Link>
+        <div className="flex gap-sm">
+          <button className="btn btn-outline" onClick={() => exportToCsv("customers_report", customers)} disabled={customers.length === 0}>
+            <Download size={16} /> Export CSV
+          </button>
+          <Link to="/customers/create" className="btn btn-primary">
+            <UserPlus size={16} /> Add Customer
+          </Link>
+        </div>
       </div>
 
       {/* Toolbar Filter panel */}
@@ -220,7 +226,7 @@ export const Customers: React.FC = () => {
         </div>
       ) : (
         <div className="table-container">
-          <table className="data-table">
+          <table className="table">
             <thead>
               <tr>
                 <th>Customer Name</th>

@@ -224,7 +224,7 @@ export const CustomerDetails: React.FC = () => {
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table className="data-table">
+              <table className="table">
                 <thead>
                   <tr>
                     <th>Challan Number</th>

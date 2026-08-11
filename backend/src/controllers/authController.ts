@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { authService } from "../services/authService.js";
+import { auditRepository } from "../repositories/auditRepository.js";
 
 export const authController = {
   /**
@@ -10,6 +11,16 @@ export const authController = {
     try {
       const { email, password } = req.body;
       const result = await authService.login(email, password);
+
+      // Log the login audit event
+      await auditRepository.log({
+        userId: result.user.id,
+        userEmail: result.user.email,
+        action: "LOGIN",
+        entityType: "USER",
+        entityId: result.user.id,
+        description: `User ${result.user.name} (${result.user.role}) logged in successfully.`,
+      });
 
       res.status(200).json({
         success: true,

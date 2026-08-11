@@ -175,7 +175,7 @@ export const ProductDetails: React.FC = () => {
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table className="data-table">
+              <table className="table">
                 <thead>
                   <tr>
                     <th>Date</th>

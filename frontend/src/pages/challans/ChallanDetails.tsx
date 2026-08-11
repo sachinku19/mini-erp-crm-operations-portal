@@ -255,7 +255,7 @@ export const ChallanDetails: React.FC = () => {
           </h3>
 
           <div className="table-container" style={{ boxShadow: "none", border: "none" }}>
-            <table className="data-table">
+            <table className="table">
               <thead style={{ borderBottom: "2px solid var(--color-border)" }}>
                 <tr>
                   <th>#</th>

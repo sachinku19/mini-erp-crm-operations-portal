@@ -29,6 +29,16 @@ async function initDb() {
     await pool.query(schemaSql);
     console.log("✅ Schema initialized successfully (tables and indexes created).");
 
+    // Read and run upgrade-schema.sql if exists
+    const upgradePath = path.join(__dirname, "upgrade-schema.sql");
+    if (fs.existsSync(upgradePath)) {
+      console.log(`Reading upgrade schema SQL from: ${upgradePath}`);
+      const upgradeSql = fs.readFileSync(upgradePath, "utf-8");
+      console.log("Executing upgrade schema SQL queries...");
+      await pool.query(upgradeSql);
+      console.log("✅ Upgrade schema initialized successfully.");
+    }
+
     // 3. Seed Users if table is empty
     const userCheck = await pool.query("SELECT COUNT(*) FROM users");
     const userCount = parseInt(userCheck.rows[0].count, 10);
